@@ -65,9 +65,11 @@ def load_sh2_data(li):
         error("Invalid CS2 chunk")
         return
 
-    if not StateCheckRetrieveHeader(li, "MSH2"):
+    msh2Size = StateCheckRetrieveHeader(li, "MSH2", False)
+    if not msh2Size:
         error("Invalid MSH2 chunk")
         return
+    programCounter = SH2LoadState(li, False, msh2Size)
 
     if not StateCheckRetrieveHeader(li, "SSH2"):
         error("Invalid SSH2 chunk")
@@ -85,20 +87,30 @@ def load_sh2_data(li):
         error("Invalid SMPC chunk")
         return
         
-    if not StateCheckRetrieveHeader(li, "VDP1"):
+    vdp1Size = StateCheckRetrieveHeader(li, "VDP1", False)
+    if not vdp1Size:
         error("Invalid VDP1 chunk")
         return
+    Vdp1LoadState(li, vdp1Size)
 
-    if not StateCheckRetrieveHeader(li, "VDP2"):
+    vdp2Size = StateCheckRetrieveHeader(li, "VDP2", False)
+    if not vdp2Size:
         error("Invalid VDP2 chunk")
         return
+    Vdp2LoadState(li, vdp2Size)
 
     if not StateCheckRetrieveHeader(li, "OTHR", False):
         error("Invalid OTHR chunk")
         return
     li.seek(li.tell()+0x10000) # Backup RAM (BUP)
-    create_load_seg(li, 0x06000000, 0x06100000, 2, "HWRAM", "DATA")
+    create_load_seg(li, 0x06000000, 0x06100000, 2, "HWRAM", "CODE")
     create_load_seg(li, 0x00200000, 0x00300000, 2, "LWRAM", "DATA")
+
+    # identify_vector_table();
+	# find_bios_funcs();
+	# find_parse_ip(0x06000C00, false);
+	# find_parse_ip(0x06002000, true);
+    idaapi.jumpto(programCounter)
     return 1
 
 # -----------------------------------------------------------------------
@@ -166,4 +178,31 @@ def StateCheckRetrieveHeader(li, expectedTitle, skipContent=True):
     sectionSize = dwordAt(li,0)
     if skipContent:
         li.seek(li.tell()+sectionSize)
-    return 1
+    return sectionSize
+
+def Vdp2LoadState(li, size):
+    # Skip registers
+    initial_position_in_yss = li.tell()
+    li.seek(li.tell()+288)
+    # VDP2 RAM
+    create_load_seg(li, 0x25E00000, 0x25E80000, 1, "VDP2RAM", "DATA")
+    create_load_seg(li, 0x25F00000, 0x25F01000, 2, "VDP2CRAM", "DATA")
+    li.seek(li.tell()+(size-(li.tell()-initial_position_in_yss)))
+
+def Vdp1LoadState(li, size):
+    # Skip registers
+    initial_position_in_yss = li.tell()
+    li.seek(li.tell()+52)
+    # VDP1 RAM
+    create_load_seg(li, 0x25C00000, 0x25C80000, 1, "VDP1RAM", "DATA")
+    li.seek(li.tell()+(size-(li.tell()-initial_position_in_yss)))
+
+def SH2LoadState(li, isSlave, size):
+    if isSlave:
+        li.seek(li.tell()+1)
+    # Skip registers
+    initial_position_in_yss = li.tell()
+    li.seek(li.tell()+88)
+    programCounter = dwordAt(li,0)
+    li.seek(li.tell()+(size-(li.tell()-initial_position_in_yss)))
+    return programCounter
