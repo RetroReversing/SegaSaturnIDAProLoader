@@ -106,10 +106,10 @@ def load_sh2_data(li):
     create_load_seg(li, 0x06000000, 0x06100000, 2, "HWRAM", "CODE")
     create_load_seg(li, 0x00200000, 0x00300000, 2, "LWRAM", "DATA")
 
-    # identify_vector_table();
-	# find_bios_funcs();
-	# find_parse_ip(0x06000C00, false);
-	# find_parse_ip(0x06002000, true);
+    identify_vector_table()
+    find_bios_funcs()
+    find_parse_ip(li, 0x06000C00, False)
+    find_parse_ip(li, 0x06002000, True)
     idaapi.jumpto(programCounter)
     return 1
 
@@ -206,3 +206,123 @@ def SH2LoadState(li, isSlave, size):
     programCounter = dwordAt(li,0)
     li.seek(li.tell()+(size-(li.tell()-initial_position_in_yss)))
     return programCounter
+
+def make_vector(addr, name):
+    idaapi.doDwrd(addr, 4)
+    idaapi.create_insn(addr)
+    idaapi.add_func(addr, idaapi.BADADDR);
+    idaapi.add_cref(addr, addr, idaapi.fl_CF);
+    if len(name)>0:
+        idaapi.set_name(addr, name)
+    return 1
+
+def identify_vector_table():
+    # MSH2 vector table
+    for i in range(0x06000000,0x06000200,4):
+        make_vector(i, "msh2_vector_"+str(i))
+
+    # SSH2 vector table
+    for i in range(0x06000400,0x06000600,4):
+        make_vector(i, "ssh2_vector_"+str(i))
+    return 1
+
+def find_bios_funcs():
+    make_ascii_string(0x06000200, 16, ASCSTR_C)
+    doByte(0x06000210, 36)
+    make_vector(0x06000234, "")
+    make_vector(0x06000238, "")
+    make_vector(0x0600023C, "")
+    make_ascii_string(0x06000240, 4, ASCSTR_C)
+    make_ascii_string(0x06000244, 4, ASCSTR_C)
+    doDwrd(0x06000248, 4)
+    doDwrd(0x0600024C, 4)
+    make_vector(0x06000250, "")
+    doDwrd(0x06000264, 4)
+    make_vector(0x06000268, "")
+    make_vector(0x0600026C, "bios_run_cd_player")
+    make_vector(0x06000270, "")
+    make_vector(0x06000274, "bios_is_mpeg_card_present")
+    doDwrd(0x06000278, 4)
+    doDwrd(0x0600027C, 4)
+    make_vector(0x06000280, "")
+    make_vector(0x06000284, "")
+    make_vector(0x06000288, "")
+    make_vector(0x0600028C, "")
+    doDwrd(0x06000290, 4)
+    doDwrd(0x06000294, 4)
+    make_vector(0x06000298, "bios_get_mpeg_rom")
+    make_vector(0x0600029C, "")
+    doDwrd(0x060002A0, 4)
+    doDwrd(0x060002A4, 4)
+    doDwrd(0x060002A8, 4)
+    doDwrd(0x060002AC, 4)
+    make_vector(0x060002B0, "")
+    doDwrd(0x060002B4, 4)
+    doDwrd(0x060002B8, 4)
+    doDwrd(0x060002BC, 4)
+    doDwrd(0x060002C0, 4)
+
+    # for (i = 0x060002C4; i < 0x06000324; i+=4)
+    for i in range(0x060002C4,0x06000324,4):
+        make_vector(i, "")
+    set_name(0x06000300, "bios_set_scu_interrupt")
+    set_name(0x06000304, "bios_get_scu_interrupt")
+    set_name(0x06000310, "bios_set_sh2_interrupt")
+    set_name(0x06000314, "bios_get_sh2_interrupt")
+    set_name(0x06000320, "bios_set_clock_speed")
+    doDwrd(0x06000324, 4)
+    set_name(0x06000324, "bios_get_clock_speed")
+    # for (i = 0x06000328; i < 0x06000348; i+=4)
+    for i in range(0x06000328,0x06000348,4):
+        make_vector(i, "")
+    set_name(0x06000340, "bios_set_scu_interrupt_mask")
+    set_name(0x06000344, "bios_change_scu_interrupt_mask")
+    doDwrd(0x06000348, 4)
+    set_name(0x06000348, "bios_get_scu_interrupt_mask")
+    make_vector(0x0600034C, "")
+    doDwrd(0x06000350, 4)
+    doDwrd(0x06000354, 4)
+    doDwrd(0x06000358, 4)
+    doDwrd(0x0600035C, 4)
+    for i in range(0x06000360,0x06000380,4):
+        make_vector(i, "")
+    doByte(0x06000380, 16)
+    doWord(0x06000390, 16)
+    doDwrd(0x060003A0, 32)
+    make_ascii_string(0x060003C0, 0x40, ASCSTR_C)
+    add_func(0x06000600, BADADDR)
+    add_func(0x06000646, BADADDR)
+    make_ascii_string(0x0600065C, 0x4, ASCSTR_C)
+    add_func(0x06000678, BADADDR)
+    add_func(0x0600067C, BADADDR)
+    add_func(0x06000690, BADADDR)
+    doDwrd(0x06000A80, 0x80);
+    return 1
+
+def find_parse_ip(li, ea, parsecode):
+    # TODO check memory for SEGA SATURN string
+    # segaSaturn = li.read(16)
+    # warning(segaSaturn+' '+str(li.tell()))
+    make_ascii_string(ea, 16, ASCSTR_C)
+    make_ascii_string(ea+0x10, 16, ASCSTR_C)
+    make_ascii_string(ea+0x20, 10, ASCSTR_C)
+    make_ascii_string(ea+0x2A, 6, ASCSTR_C)
+    make_ascii_string(ea+0x30, 8, ASCSTR_C)
+    make_ascii_string(ea+0x38, 8, ASCSTR_C)
+    make_ascii_string(ea+0x40, 10, ASCSTR_C)
+    make_ascii_string(ea+0x4A, 6, ASCSTR_C)
+    make_ascii_string(ea+0x50, 16, ASCSTR_C)
+    make_ascii_string(ea+0x60, 0x70, ASCSTR_C)
+    doByte(ea+0xD0, 16)
+    doDwrd(ea+0xE0, 4)
+    doDwrd(ea+0xE4, 4)
+    doDwrd(ea+0xE8, 4)
+    doDwrd(ea+0xEC, 4)
+    doDwrd(ea+0xF0, 4)
+    add_func(get_long(ea+0xF0), BADADDR)
+    doDwrd(ea+0xF4, 4)
+    doDwrd(ea+0xF8, 4)
+    doDwrd(ea+0xFC, 4)
+    if parsecode:
+        add_func(ea+0x100, BADADDR)
+    return 1
